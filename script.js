@@ -22,19 +22,65 @@ const loadWatchlist = () => {
   }
 };
 
+const showSearchError = (message) => {
+  movieResults.innerHTML = `<p class="no-results">${message}</p>`;
+};
+
 const fetchMovies = async (query) => {
   const apiKey = `2bd7252b`;
   const url = `https://www.omdbapi.com/?s=${encodeURIComponent(query)}&apikey=${apiKey}`;
 
-  //fetch data from API
-  const response = await fetch(url);
-  const data = await response.json();
+  // Fetch data from API and catch network-level failures
+  const response = await fetch(url).catch((error) => {
+    console.error(`Network error while fetching movies:`, {
+      query,
+      url,
+      message: error.message,
+    });
+    return null;
+  });
+
+  if (!response) {
+    showSearchError(`Something went wrong. Please check your internet and try again.`);
+    return;
+  }
+
+  // Check HTTP status before reading response body
+  if (!response.ok) {
+    console.error(`OMDb request failed with non-OK status:`, {
+      query,
+      url,
+      status: response.status,
+      statusText: response.statusText,
+    });
+    showSearchError(`We could not load movies right now. Please try again in a moment.`);
+    return;
+  }
+
+  const data = await response.json().catch((error) => {
+    console.error(`Failed to parse OMDb response JSON:`, {
+      query,
+      url,
+      message: error.message,
+    });
+    return null;
+  });
+
+  if (!data) {
+    showSearchError(`We received an invalid response. Please try again.`);
+    return;
+  }
 
   // OMDb returns Response as a string: "True" or "False"
-  if (data.Response === `True`) {
+  if (data.Response === `True` && Array.isArray(data.Search)) {
     displayMovies(data.Search);
   } else {
-    movieResults.innerHTML = `<p class="no-results"> No results found. Please try a different search </p>`;
+    console.warn(`OMDb returned no results or an API-level error:`, {
+      query,
+      apiError: data.Error,
+      responseFlag: data.Response,
+    });
+    showSearchError(`No results found. Please try a different search.`);
   }
 };
 
