@@ -26,62 +26,60 @@ const showSearchError = (message) => {
   movieResults.innerHTML = `<p class="no-results">${message}</p>`;
 };
 
-const fetchMovies = async (query) => {
+const fetchMovies = (query) => {
   const apiKey = `2bd7252b`;
   const url = `https://www.omdbapi.com/?s=${encodeURIComponent(query)}&apikey=${apiKey}`;
 
-  // Fetch data from API and catch network-level failures
-  const response = await fetch(url).catch((error) => {
-    console.error(`Network error while fetching movies:`, {
-      query,
-      url,
-      message: error.message,
+  // Fetch data from API using a promise chain
+  fetch(url)
+    .then((response) => {
+      // Check HTTP status before reading response body
+      if (!response.ok) {
+        console.error(`OMDb request failed with non-OK status:`, {
+          query,
+          url,
+          status: response.status,
+          statusText: response.statusText,
+        });
+        showSearchError(`We could not load movies right now. Please try again in a moment.`);
+        return null;
+      }
+
+      return response.json().catch((error) => {
+        console.error(`Failed to parse OMDb response JSON:`, {
+          query,
+          url,
+          message: error.message,
+        });
+        showSearchError(`We received an invalid response. Please try again.`);
+        return null;
+      });
+    })
+    .then((data) => {
+      if (!data) {
+        return;
+      }
+
+      // OMDb returns Response as a string: "True" or "False"
+      if (data.Response === `True` && Array.isArray(data.Search)) {
+        displayMovies(data.Search);
+      } else {
+        console.warn(`OMDb returned no results or an API-level error:`, {
+          query,
+          apiError: data.Error,
+          responseFlag: data.Response,
+        });
+        showSearchError(`No results found. Please try a different search.`);
+      }
+    })
+    .catch((error) => {
+      console.error(`Network error while fetching movies:`, {
+        query,
+        url,
+        message: error.message,
+      });
+      showSearchError(`Something went wrong. Please check your internet and try again.`);
     });
-    return null;
-  });
-
-  if (!response) {
-    showSearchError(`Something went wrong. Please check your internet and try again.`);
-    return;
-  }
-
-  // Check HTTP status before reading response body
-  if (!response.ok) {
-    console.error(`OMDb request failed with non-OK status:`, {
-      query,
-      url,
-      status: response.status,
-      statusText: response.statusText,
-    });
-    showSearchError(`We could not load movies right now. Please try again in a moment.`);
-    return;
-  }
-
-  const data = await response.json().catch((error) => {
-    console.error(`Failed to parse OMDb response JSON:`, {
-      query,
-      url,
-      message: error.message,
-    });
-    return null;
-  });
-
-  if (!data) {
-    showSearchError(`We received an invalid response. Please try again.`);
-    return;
-  }
-
-  // OMDb returns Response as a string: "True" or "False"
-  if (data.Response === `True` && Array.isArray(data.Search)) {
-    displayMovies(data.Search);
-  } else {
-    console.warn(`OMDb returned no results or an API-level error:`, {
-      query,
-      apiError: data.Error,
-      responseFlag: data.Response,
-    });
-    showSearchError(`No results found. Please try a different search.`);
-  }
 };
 
 const displayMovies = (movies) => {
